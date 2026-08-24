@@ -422,64 +422,72 @@ def admin_reset_password(user_id):
     return redirect(url_for('admin_users'))
 
 
-@app.route('/profile', methods=['GET', 'POST'])
+@app.route('/profile')
 @login_required
 def profile():
-    if request.method == 'POST':
-        current_password = request.form.get('current_password') or ''
-        new_username = (request.form.get('new_username') or '').strip()
-        new_password = request.form.get('new_password') or ''
-        confirm_password = request.form.get('confirm_password') or ''
+    return render_template('profile.html')
 
-        with get_db() as conn:
-            row = conn.execute(
-                'SELECT password FROM users WHERE id = ?', (current_user.id,)
-            ).fetchone()
 
-            if not row or not check_password_hash(row[0], current_password):
-                flash('Current password is incorrect.')
-                return redirect(url_for('profile'))
+@app.route('/profile/username', methods=['POST'])
+@login_required
+def profile_change_username():
+    new_username = (request.form.get('new_username') or '').strip()
 
-            username_changing = new_username and new_username != current_user.username
-            password_changing = bool(new_password)
-
-            if not username_changing and not password_changing:
-                flash('Nothing to update.')
-                return redirect(url_for('profile'))
-
-            if password_changing:
-                if new_password != confirm_password:
-                    flash('New password and confirmation do not match.')
-                    return redirect(url_for('profile'))
-                if len(new_password) < 6:
-                    flash('New password must be at least 6 characters.')
-                    return redirect(url_for('profile'))
-
-            if username_changing:
-                existing = conn.execute(
-                    'SELECT id FROM users WHERE username = ? AND id != ?',
-                    (new_username, current_user.id),
-                ).fetchone()
-                if existing:
-                    flash('That username is already taken.')
-                    return redirect(url_for('profile'))
-                conn.execute(
-                    'UPDATE users SET username = ? WHERE id = ?',
-                    (new_username, current_user.id),
-                )
-
-            if password_changing:
-                conn.execute(
-                    'UPDATE users SET password = ? WHERE id = ?',
-                    (generate_password_hash(new_password, method='pbkdf2:sha256'), current_user.id),
-                )
-
-            conn.commit()
-
-        flash('Profile updated.')
+    if not new_username:
+        flash('Username cannot be empty.')
+        return redirect(url_for('profile'))
+    if new_username == current_user.username:
+        flash('That is already your username.')
         return redirect(url_for('profile'))
 
-    return render_template('profile.html')
+    try:
+        with get_db() as conn:
+            conn.execute(
+                'UPDATE users SET username = ? WHERE id = ?',
+                (new_username, current_user.id),
+            )
+            conn.commit()
+    except sqlite3.IntegrityError:
+        flash('That username is already taken.')
+        return redirect(url_for('profile'))
+
+    flash('Username updated.')
+    return redirect(url_for('profile'))
+
+
+@app.route('/profile/password', methods=['POST'])
+@login_required
+def profile_change_password():
+    current_password = request.form.get('current_password') or ''
+    new_password = request.form.get('new_password') or ''
+    confirm_password = request.form.get('confirm_password') or ''
+
+    if not new_password:
+        flash('New password cannot be empty.')
+        return redirect(url_for('profile'))
+    if len(new_password) < 6:
+        flash('New password must be at least 6 characters.')
+        return redirect(url_for('profile'))
+    if new_password != confirm_password:
+        flash('New password and confirmation do not match.')
+        return redirect(url_for('profile'))
+
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT password FROM users WHERE id = ?', (current_user.id,)
+        ).fetchone()
+        if not row or not check_password_hash(row[0], current_password):
+            flash('Current password is incorrect.')
+            return redirect(url_for('profile'))
+
+        conn.execute(
+            'UPDATE users SET password = ? WHERE id = ?',
+            (generate_password_hash(new_password, method='pbkdf2:sha256'), current_user.id),
+        )
+        conn.commit()
+
+    flash('Password updated.')
+    return redirect(url_for('profile'))
 
 
 @app.route('/shorten', methods=['POST'])
@@ -497,6 +505,7 @@ def shorten_url():
     if not original_url.startswith(('http://', 'https://')):
         original_url = 'https://' + original_url
 
+#might need to be changed not sure if it works
     if not is_valid_url(original_url):
         return jsonify({'error': 'Enter a valid URL.'}), 400
 
@@ -521,7 +530,7 @@ def shorten_url():
     except sqlite3.IntegrityError:
         return jsonify({'error': 'This custom tou.ro/slug is already taken.'}), 400
 
-    short_link = url_for('redirect_to_url', slug=custom_slug, _external=True)
+    short_link = url_for('redirect_to_url', slug=custom_slug,_external=True)
     return jsonify({'success': True, 'short_link': short_link})
 
 
