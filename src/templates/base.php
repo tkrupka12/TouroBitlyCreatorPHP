@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tou.ro Link Manager</title>
+    <title><?= e(SHORT_LINK_DOMAIN) ?> Link Manager</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -30,13 +30,14 @@
         }
         .form-group { margin-bottom: 1.2rem; }
         label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #555; }
-        input {
+        input, select {
             width: 100%;
             padding: 0.75rem;
             border: 1px solid #ccc;
             border-radius: 6px;
             box-sizing: border-box;
             font-size: 1rem;
+            background: white;
         }
         button {
             width: 100%;
@@ -63,6 +64,7 @@
             margin-left: 0.5rem;
         }
         .badge-admin { background: #f0ad4e; color: white; }
+        .badge-group { background: #e8ecf7; color: #33447a; }
         .badge-pending { background: #ccc; color: #333; }
         .badge-active { background: #5cb85c; color: white; }
         .badge-reset { background: #d9534f; color: white; }
@@ -132,45 +134,79 @@
             font-size: 0.85rem;
         }
         .btn-danger:hover { background: #c9302c; }
+        .section { margin-bottom: 1.25rem; }
+        .section > h3 { margin: 0 0 0.2rem; font-size: 1rem; color: #333; }
+        .field-hint { color: #777; font-size: 0.85rem; margin: 0 0 0.7rem; }
+        .choice {
+            display: block; position: relative;
+            font-weight: normal; padding-left: 1.7rem; margin-bottom: 0.7rem;
+            cursor: pointer;
+        }
+        .choice input[type="radio"] {
+            width: auto; position: absolute; left: 0; top: 0.15rem; margin: 0;
+        }
+        .choice-title { display: block; font-weight: 600; color: #333; }
+        .choice-desc { display: block; color: #777; font-size: 0.85rem; margin-top: 0.1rem; }
+        .url-row { display: flex; align-items: stretch; }
+        .url-prefix {
+            display: flex; align-items: center; white-space: nowrap;
+            padding: 0 0.7rem; background: #f4f7f6; color: #555; font-size: 0.95rem;
+            border: 1px solid #ccc; border-right: none; border-radius: 6px 0 0 6px;
+        }
+        .url-row input { border-radius: 0 6px 6px 0; }
+        .link-preview {
+            background: #f7f7f7; border-radius: 6px; padding: 0.8rem 1rem;
+            font-weight: 600; color: #0056b3; word-break: break-all;
+        }
+        .link-preview .placeholder { color: #999; font-weight: normal; }
     </style>
 </head>
 <body>
 <nav>
-    <div><strong>tou.ro</strong> Link Manager</div>
+    <div><strong><?= e(SHORT_LINK_DOMAIN) ?></strong> Link Manager</div>
     <div>
-        {% if current_user.is_authenticated %}
-        <span>Logged in as: <strong>{{ current_user.username }}</strong>{% if current_user.is_admin %}<span class="badge badge-admin">admin</span>{% endif %}</span>
-        <a href="{{ url_for('index') }}">Create Custom Link</a>
-        {% if current_user.is_admin %}
-        <a href="{{ url_for('admin_users') }}">Manage Users</a>
-        {% endif %}
-        <a href="{{ url_for('profile') }}">Profile</a>
-        <a href="{{ url_for('logout') }}">Logout</a>
-        {% else %}
-        <a href="{{ url_for('login') }}">Login</a>
-        {% endif %}
+        <?php if ($current_user): ?>
+        <?php $manages_a_group = $current_user['is_super'] || $current_user['is_group_admin']; ?>
+        <span>Logged in as: <strong><?= e($current_user['display_name']) ?></strong><?php
+            if ($current_user['is_super']): ?><span class="badge badge-admin">super admin</span><?php
+            elseif ($current_user['is_group_admin']): ?><span class="badge badge-admin">group admin</span><?php
+            endif; ?><?php
+            if ($current_group_name !== null): ?><span class="badge badge-group"><?= e($current_group_name) ?></span><?php
+            elseif ($current_user['is_super']): ?><span class="badge badge-group">all groups</span><?php
+            endif; ?></span>
+        <a href="<?= e(url_for('index')) ?>">Create Custom Link</a>
+        <?php if ($manages_a_group): ?>
+        <a href="<?= e(url_for('admin_expired')) ?>">Expired Links</a>
+        <a href="<?= e(url_for('admin_users')) ?>">Manage Users</a>
+        <?php endif; ?>
+        <?php if ($current_user['is_super']): ?>
+        <a href="<?= e(url_for('admin_groups')) ?>">Groups</a>
+        <?php endif; ?>
+        <a href="<?= e(url_for('profile')) ?>">Profile</a>
+        <a href="<?= e(url_for('logout')) ?>">Logout</a>
+        <?php else: ?>
+        <a href="<?= e(url_for('login')) ?>">Login</a>
+        <?php endif; ?>
     </div>
 </nav>
 
 <div class="container">
-    {% with messages = get_flashed_messages() %}
-    {% if messages %}
+    <?php if (!empty($flashes)): ?>
     <ul class="flashes">
-        {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+        <?php foreach ($flashes as $message): ?><li><?= e($message) ?></li><?php endforeach; ?>
     </ul>
-    {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
+    <?php endif; ?>
+    <?= $content ?>
 </div>
 
-{% if current_user.is_authenticated and not session.get('remember_me') %}
+<?php if ($current_user && empty($remember_me)): ?>
 <dialog id="sessionTimeoutDialog" class="note-dialog">
     <div class="dlg-body">
         <h3>Session about to expire</h3>
         <p>You will be signed out in <strong id="sessionCountdown">—</strong> if you don't stay active.</p>
         <div style="display: flex; gap: 0.5rem;">
             <button type="button" id="sessionStayBtn" class="dlg-close">Stay signed in</button>
-            <a href="{{ url_for('logout') }}" style="text-decoration: none;">
+            <a href="<?= e(url_for('logout')) ?>" style="text-decoration: none;">
                 <button type="button" class="dlg-close btn-danger">Log out now</button>
             </a>
         </div>
@@ -178,7 +214,7 @@
 </dialog>
 <script>
 (function () {
-    const LIFETIME_MS = {{ session_lifetime_seconds }} * 1000;
+    const LIFETIME_MS = <?= (int) $session_lifetime_seconds ?> * 1000;
     const WARNING_MS = Math.min(120000, Math.max(30000, Math.floor(LIFETIME_MS / 4)));
     const dialog = document.getElementById('sessionTimeoutDialog');
     const countdown = document.getElementById('sessionCountdown');
@@ -225,6 +261,6 @@
     }, 1000);
 })();
 </script>
-{% endif %}
+<?php endif; ?>
 </body>
 </html>

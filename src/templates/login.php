@@ -1,10 +1,10 @@
-{% extends "base.html" %}
-{% block content %}
 <h2>Login</h2>
 <form method="POST">
     <div class="form-group">
-        <label>Username</label>
-        <input type="text" name="username" id="loginUsername" autocomplete="username" required>
+        <label>Email</label>
+        <!-- Deliberately type=text: accounts created before the email switch log in with a plain name. -->
+        <input type="text" name="username_email" id="loginUsername" inputmode="email"
+               autocomplete="username" required>
         <div id="usernameStatus" class="muted" style="font-size: 0.85rem; margin-top: 0.3rem; min-height: 1.1em;"></div>
     </div>
     <div class="form-group">
@@ -20,7 +20,7 @@
     <button type="submit">Log In</button>
 </form>
 <div class="auth-links">
-    <p><a href="{{ url_for('forgot_password') }}">Forgot password?</a></p>
+    <p><a href="<?= e(url_for('forgot_password')) ?>">Forgot password?</a></p>
     <p class="muted">Need access? Ask an admin to create an account for you.</p>
 </div>
 
@@ -41,7 +41,7 @@
                 status.textContent = '✓ Account found';
                 status.style.color = '#3c763d';
             } else {
-                status.textContent = '✗ No account with that username';
+                status.textContent = '✗ No account with that email';
                 status.style.color = '#a94442';
             }
         } catch (err) { /* ignore */ }
@@ -59,4 +59,3 @@
     });
 })();
 </script>
-{% endblock %}

@@ -1,24 +1,81 @@
-{% extends "base.html" %}
-{% block content %}
-<h2>Create Custom Link</h2>
+<?php $actor_is_super = !empty($current_user['is_super']); ?>
+<h2>Create a Tou.ro short link</h2>
 <form id="urlForm">
-    <div class="form-group">
-        <label>Destination URL</label>
-        <input type="text" id="url" placeholder="https://example.com/long-path" required>
+    <div class="section">
+        <h3>Destination</h3>
+        <p class="field-hint">Where should this link send people?</p>
+        <input type="text" id="url" placeholder="https://www.example.com/long-path" required>
     </div>
-    <div class="form-group">
-        <label>Custom Slash Suffix</label>
-        <input type="text" id="slug" placeholder="my-custom-slug" required>
+
+    <?php if ($actor_is_super): ?>
+    <div class="section">
+        <h3>Group</h3>
+        <p class="field-hint">Which group should own this link?</p>
+        <?php if (!empty($groups)): ?>
+        <select id="linkGroup" required>
+            <?php foreach ($groups as $g): ?>
+            <option value="<?= (int) $g['id'] ?>"><?= e($g['name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php else: ?>
+        <p class="field-hint">
+            No groups exist yet. <a href="<?= e(url_for('admin_groups')) ?>">Create a group</a> before adding links.
+        </p>
+        <?php endif; ?>
     </div>
-    <div class="form-group">
-        <label>Expires at <span class="muted">(optional — leave blank for never)</span></label>
-        <input type="datetime-local" id="expires_at">
+    <?php endif; ?>
+
+    <div class="section">
+        <h3>Choose your short link</h3>
+        <label class="choice">
+            <input type="radio" name="url_mode" value="custom" checked>
+            <span class="choice-title">Create a custom link</span>
+            <span class="choice-desc">Create an easy-to-remember link.</span>
+        </label>
+        <label class="choice">
+            <input type="radio" name="url_mode" value="random">
+            <span class="choice-title">Generate a link automatically</span>
+            <span class="choice-desc"> A unique short link will be generated for you.</span>
+        </label>
     </div>
-    <div class="form-group">
-        <label>Notes <span class="muted">(optional)</span></label>
-        <textarea id="notes" rows="3" placeholder="What is this link for?" style="width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; font-family:inherit; font-size:1rem;"></textarea>
+
+    <div class="section" id="customUrlGroup">
+        <h3>Your short link</h3>
+        <div class="url-row">
+            <span class="url-prefix"><?= e(SHORT_LINK_DOMAIN) ?>/</span>
+            <input type="text" id="short_url" placeholder="admissions" autocapitalize="off" autocorrect="off"
+                   spellcheck="false" style="text-transform: lowercase;" required>
+        </div>
+        <p class="field-hint" style="margin: 0.5rem 0 0;">Lowercase letters, numbers, dashes, and underscores only.</p>
     </div>
-    <button type="submit">Generate Link</button>
+
+    <div class="section">
+        <h3>Link preview</h3>
+        <div class="link-preview" id="linkPreview"></div>
+    </div>
+
+    <div class="section">
+        <h3>Expiration</h3>
+        <label class="choice">
+            <input type="radio" name="expiry_mode" value="never" checked>
+            <span class="choice-title">Never expires</span>
+        </label>
+        <label class="choice">
+            <input type="radio" name="expiry_mode" value="date">
+            <span class="choice-title">Set an expiration date</span>
+        </label>
+        <div id="expiryGroup" style="display: none;">
+            <input type="datetime-local" id="expires_at">
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>Optional details</h3>
+        <label for="notes">Notes</label>
+        <textarea id="notes" rows="3" placeholder="Add a note for your team..." style="width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; box-sizing:border-box; font-family:inherit; font-size:1rem;"></textarea>
+    </div>
+
+    <button type="submit">Create short link</button>
 </form>
 <div id="result" style="margin-top: 1rem; display:none; padding: 0.75rem; background:#e2f0d9; border-radius:6px;"></div>
 
@@ -27,15 +84,16 @@
 <h3>All Links</h3>
 <table>
     <colgroup>
-        <col style="width: 20%">
-        <col style="width: 13%">
-        <col style="width: 6%">
+        <col style="width: <?= $actor_is_super ? '14%' : '19%' ?>">
+        <col style="width: 14%">
+        <col style="width: 7%">
+        <col style="width: 8%">
+        <?php if ($actor_is_super): ?><col style="width: 9%"><?php endif; ?>
+        <col style="width: 8%">
         <col style="width: 8%">
         <col style="width: 9%">
         <col style="width: 9%">
-        <col style="width: 10%">
-        <col style="width: 10%">
-        <col style="width: 15%">
+        <col style="width: <?= $actor_is_super ? '14%' : '18%' ?>">
     </colgroup>
     <thead>
         <tr>
@@ -43,6 +101,7 @@
             <th>Short</th>
             <th>Clicks</th>
             <th>Creator</th>
+            <?php if ($actor_is_super): ?><th>Group</th><?php endif; ?>
             <th>Created</th>
             <th>Expires</th>
             <th>Last edited</th>
@@ -51,71 +110,83 @@
         </tr>
     </thead>
     <tbody>
-    {% for link in all_links %}
-        <tr data-link-id="{{ link.id }}">
-            <td class="{% if link.expired %}expired{% endif %}">
-                <div class="tt" data-tooltip="{{ link.url }}">
-                    <a class="truncate" href="{{ link.url }}" target="_blank">{{ link.url }}</a>
+    <?php if (!empty($all_links)): ?>
+    <?php foreach ($all_links as $link): ?>
+        <?php
+            [$created_date, $created_time] = stacked_date_parts($link['created_at'] ?? null);
+            [$expires_date, $expires_time] = stacked_date_parts($link['expires_at'] ?? null);
+            [$updated_date, $updated_time] = stacked_date_parts($link['updated_at'] ?? null);
+        ?>
+        <tr data-link-id="<?= e($link['id']) ?>">
+            <td class="<?= !empty($link['expired']) ? 'expired' : '' ?>">
+                <div class="tt" data-tooltip="<?= e($link['url']) ?>">
+                    <a class="truncate" href="<?= e($link['url']) ?>" target="_blank"><?= e($link['url']) ?></a>
                 </div>
             </td>
             <td>
-                <div class="tt" data-tooltip="tou.ro/{{ link.slug }}">
-                    <a class="truncate short-link" data-link-id="{{ link.id }}" href="{{ url_for('redirect_to_url', slug=link.slug) }}" target="_blank"><strong>tou.ro/{{ link.slug }}</strong></a>
+                <div class="tt" data-tooltip="<?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?>">
+                    <a class="truncate short-link" data-link-id="<?= e($link['id']) ?>" href="<?= e(url_for('redirect_to_url', ['short_url' => $link['short_url']])) ?>" target="_blank"><strong><?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?></strong></a>
                 </div>
                 <button type="button" class="copy-btn"
-                        data-copy="{{ url_for('redirect_to_url', slug=link.slug, _external=True) }}">
+                        data-copy="<?= e(url_for('redirect_to_url', ['short_url' => $link['short_url']], true)) ?>">
                     &#128203; Copy
                 </button>
-                {% if link.expired %}<span class="expired-badge">expired</span>{% endif %}
+                <?php if (!empty($link['expired'])): ?><span class="expired-badge">expired</span><?php endif; ?>
             </td>
-            <td class="click-cell" data-link-id="{{ link.id }}"><strong>{{ link.clicks }}</strong></td>
-            <td class="truncate" title="{{ link.creator }}">{{ link.creator }}</td>
+            <td class="click-cell" data-link-id="<?= e($link['id']) ?>"><strong><?= e($link['clicks']) ?></strong></td>
+            <td title="<?= e($link['creator']) ?>"><span class="truncate"><?= e($link['creator']) ?></span></td>
+            <?php if ($actor_is_super): ?>
+            <td title="<?= e($link['group_name'] ?? '') ?>">
+                <span class="truncate"><?= $link['group_name'] !== null ? e($link['group_name']) : '<span class="muted">none</span>' ?></span>
+            </td>
+            <?php endif; ?>
             <td class="muted stacked-date">
-                {% if link.created_at %}
-                    {{ link.created_at.split(' ')[0] }}<br>
-                    <span class="time">{{ link.created_at.split(' ')[1][:5] }}</span>
-                {% else %}—{% endif %}
+                <?php if ($link['created_at']): ?>
+                    <?= e($created_date) ?><br>
+                    <span class="time"><?= e($created_time) ?></span>
+                <?php else: ?>—<?php endif; ?>
             </td>
             <td class="muted stacked-date">
-                {% if link.expires_at %}
-                    {{ link.expires_at.split(' ')[0] }}<br>
-                    <span class="time">{{ link.expires_at.split(' ')[1][:5] }}</span>
-                {% else %}never{% endif %}
+                <?php if ($link['expires_at']): ?>
+                    <?= e($expires_date) ?><br>
+                    <span class="time"><?= e($expires_time) ?></span>
+                <?php else: ?>never<?php endif; ?>
             </td>
-            <td class="muted stacked-date updated-cell" data-link-id="{{ link.id }}">
-                {% if link.updated_at %}
-                    {{ link.updated_at.split(' ')[0] }}<br>
-                    <span class="time">{{ link.updated_at.split(' ')[1][:5] }}</span>
-                    {% if link.updated_by %}<br><span class="time">by {{ link.updated_by }}</span>{% endif %}
-                {% else %}—{% endif %}
+            <td class="muted stacked-date updated-cell" data-link-id="<?= e($link['id']) ?>">
+                <?php if ($link['updated_at']): ?>
+                    <?= e($updated_date) ?><br>
+                    <span class="time"><?= e($updated_time) ?></span>
+                    <?php if ($link['updated_by']): ?><br><span class="time">by <?= e($link['updated_by']) ?></span><?php endif; ?>
+                <?php else: ?>—<?php endif; ?>
             </td>
-            <td class="note-cell" data-link-id="{{ link.id }}" data-slug="{{ link.slug }}" data-note="{{ link.notes }}">
-                {% if link.notes %}
-                <div class="tt" data-tooltip="{{ link.notes }}" style="display: inline-block;">
+            <td class="note-cell" data-link-id="<?= e($link['id']) ?>" data-short-url="<?= e($link['short_url']) ?>" data-note="<?= e($link['notes']) ?>">
+                <?php if ($link['notes']): ?>
+                <div class="tt" data-tooltip="<?= e($link['notes']) ?>" style="display: inline-block;">
                     <button type="button" class="note-btn note-open">&#128221; Note</button>
                 </div>
-                {% else %}
+                <?php else: ?>
                 <button type="button" class="note-btn note-btn-empty note-open">+ Add note</button>
-                {% endif %}
+                <?php endif; ?>
             </td>
             <td>
                 <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-                    <a href="{{ url_for('edit_link', link_id=link.id) }}">
+                    <a href="<?= e(url_for('edit_link', ['link_id' => $link['id']])) ?>">
                         <button type="button" class="btn-small">Update</button>
                     </a>
-                    {% if link.can_delete %}
-                    <form method="POST" action="{{ url_for('delete_link', link_id=link.id) }}"
-                          onsubmit="return confirm('Delete tou.ro/{{ link.slug }}? This cannot be undone.');"
+                    <?php if (!empty($link['can_delete'])): ?>
+                    <form method="POST" action="<?= e(url_for('delete_link', ['link_id' => $link['id']])) ?>"
+                          onsubmit="return confirm('Delete <?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?>? This cannot be undone.');"
                           style="margin: 0;">
                         <button type="submit" class="btn-small btn-danger">Delete</button>
                     </form>
-                    {% endif %}
+                    <?php endif; ?>
                 </div>
             </td>
         </tr>
-    {% else %}
-        <tr><td colspan="9" class="muted">No links yet.</td></tr>
-    {% endfor %}
+    <?php endforeach; ?>
+    <?php else: ?>
+        <tr><td colspan="<?= $actor_is_super ? 10 : 9 ?>" class="muted">No links yet.</td></tr>
+    <?php endif; ?>
     </tbody>
 </table>
 
@@ -137,18 +208,82 @@
 </dialog>
 
 <script>
+    const SHORT_LINK_DOMAIN = <?= json_encode(SHORT_LINK_DOMAIN) ?>;
+
+    const shortUrlInput = document.getElementById('short_url');
+    const customUrlGroup = document.getElementById('customUrlGroup');
+    const linkPreview = document.getElementById('linkPreview');
+    const expiresInput = document.getElementById('expires_at');
+    const expiryGroup = document.getElementById('expiryGroup');
+
+    function currentMode() {
+        const checked = document.querySelector('input[name="url_mode"]:checked');
+        return checked ? checked.value : 'custom';
+    }
+
+    function renderPreview() {
+        const random = currentMode() === 'random';
+        const typed = shortUrlInput.value.trim().toLowerCase();
+        linkPreview.textContent = SHORT_LINK_DOMAIN + '/';
+        if (!random && typed) {
+            linkPreview.appendChild(document.createTextNode(typed));
+            return;
+        }
+        const hint = document.createElement('span');
+        hint.className = 'placeholder';
+        hint.textContent = random ? 'a unique 6-character link' : 'your-custom-link';
+        linkPreview.appendChild(hint);
+    }
+
+    function applyMode() {
+        const random = currentMode() === 'random';
+        customUrlGroup.style.display = random ? 'none' : '';
+        shortUrlInput.required = !random;
+        renderPreview();
+    }
+
+    function applyExpiryMode() {
+        const checked = document.querySelector('input[name="expiry_mode"]:checked');
+        const useDate = checked && checked.value === 'date';
+        expiryGroup.style.display = useDate ? '' : 'none';
+        expiresInput.required = useDate;
+        if (!useDate) expiresInput.value = '';
+    }
+
+    document.querySelectorAll('input[name="url_mode"]').forEach(radio => {
+        radio.addEventListener('change', applyMode);
+    });
+    document.querySelectorAll('input[name="expiry_mode"]').forEach(radio => {
+        radio.addEventListener('change', applyExpiryMode);
+    });
+    applyMode();
+    applyExpiryMode();
+
+    shortUrlInput.addEventListener('input', () => {
+        const lowered = shortUrlInput.value.toLowerCase();
+        if (shortUrlInput.value !== lowered) {
+            const pos = shortUrlInput.selectionStart;
+            shortUrlInput.value = lowered;
+            shortUrlInput.setSelectionRange(pos, pos);
+        }
+        renderPreview();
+    });
+
     document.getElementById('urlForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const url = document.getElementById('url').value;
-        const slug = document.getElementById('slug').value;
-        const expires_at = document.getElementById('expires_at').value;
+        const mode = currentMode();
+        const short_url = mode === 'random' ? '' : shortUrlInput.value.trim().toLowerCase();
+        const expires_at = expiresInput.value;
         const notes = document.getElementById('notes').value;
+        const groupSelect = document.getElementById('linkGroup');
+        const group_id = groupSelect ? groupSelect.value : null;
         const resultDiv = document.getElementById('result');
 
         const response = await fetch('/shorten', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url, slug, expires_at, notes })
+            body: JSON.stringify({ url, short_url, mode, expires_at, notes, group_id })
         });
         const data = await response.json();
 
@@ -220,7 +355,7 @@
         if (!opener) return;
         activeCell = opener.closest('.note-cell');
         const note = activeCell.dataset.note || '';
-        noteTitle.textContent = 'Note for tou.ro/' + activeCell.dataset.slug;
+        noteTitle.textContent = 'Note for ' + SHORT_LINK_DOMAIN + '/' + activeCell.dataset.shortUrl;
         noteContent.textContent = note;
         if (note) setViewMode(); else setEditMode();
         noteDialog.showModal();
@@ -253,7 +388,6 @@
                 return;
             }
             activeCell.dataset.note = data.notes;
-            const slug = activeCell.dataset.slug;
             const linkIdAttr = activeCell.dataset.linkId;
             if (data.notes) {
                 activeCell.innerHTML =
@@ -326,4 +460,3 @@
         if (document.visibilityState === 'visible') syncClicks();
     });
 </script>
-{% endblock %}
