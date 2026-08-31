@@ -1,58 +1,62 @@
 # tou.ro Link Manager
 
-A small Flask + SQLite URL shortener with a full user-management layer. Admins create accounts and hand out credentials; users log in to create custom `tou.ro/<slug>` short links, set expirations, add notes, and see live click counts.
+A PHP + SQLite URL shortener for creating and managing Touro short links. Super admins create groups and accounts; signed-in users create custom or random `tou.ro/<short-url>` links, set expirations, add notes, and see live click counts.
+
+`tou.ro/` is display branding. While you run the app locally, links actually open on whatever host you use (for example `http://localhost:8000/admissions`).
 
 ## Features
 
 ### Link management
-- Custom slugs (letters, numbers, dashes, underscores; reserved routes are blocked)
-- Optional expiration dates — expired links show a dedicated "gone" page
-- Notes per link with hover preview and inline editing (no page reload)
-- One-click **Copy Link** button next to every short URL
-- Live click counts that update on click, on tab focus, and via a 3-second poll
-- Anyone signed in can edit any link; the "Last edited" column shows who touched it last
+- Custom short URLs (lowercase letters, numbers, dashes, underscores; reserved routes are blocked)
+- Optional automatic 6-character short URLs
+- Optional expiration dates — expired links leave the main list and show a dedicated “gone” page
+- An **Expired Links** tab for group admins and super admins
+- Notes with hover preview and inline editing
+- One-click **Copy** next to every short URL
+- Live click counts (on click, on tab focus, and a 3-second poll)
+- Anyone who can see a link can edit it; **Last edited** shows who touched it last
+- Super admins see a Group column and pick a group when creating a link
 
-### Accounts and access
-- Admin creates users with a username and initial password
-- Copy-friendly email modal auto-opens after user creation with a pre-written message the admin can paste and send
-- Users can change their own username and password from a **Profile** page
-- Promote/demote admins; the last remaining admin can't be removed or demoted
+### Accounts, groups, and roles
+- Three roles: **super admin**, **group admin**, and **user**
+- Super admins manage every group; group admins only see their own group
+- Create users with a name, email (used to log in), initial password, role, and group
+- Super admins have no group (“all groups”). Choosing **super admin** hides the group picker
+- Copy-friendly email modal after creating a user or resetting a password
+- Users can change their name, email, and password on **Profile**
+- The last remaining super admin cannot be removed or demoted
+- Removing a user opens a popup: transfer their links to someone else, or delete them
 
 ### Session and password recovery
-- 30-minute rolling session with a warning dialog 2 minutes before expiry
-- **Keep me logged in** on the login form (30-day remember cookie) — silences the timeout warning
-- Auto-redirect to `/login?reason=timeout` with a flash message when the session ends
-- **Forgot password?** flow — user requests a reset, admin sees a "reset requested" badge on Manage Users and can reset the password inline (same email modal reappears with the new credentials)
-- Live "account found / not found" hint on the login form as you type the username
+- 30-minute rolling session with a warning 2 minutes before expiry
+- **Keep me logged in** (30-day cookie) silences the timeout warning
+- **Forgot password?** — the user requests a reset; an admin sees a badge on Manage Users and sets a new password
+- Live “account found / not found” hint on the login form
 
 ## Requirements
 
-- Python 3.10+
-- `flask`, `flask-login`, `werkzeug`
-
-```bash
-pip install -r requirements.txt
-```
+- PHP 8.1+ with the PDO SQLite extension
+- Apache with `mod_rewrite` if you deploy behind the included `.htaccess`; otherwise PHP’s built-in server is enough for local use
 
 ## Run locally
 
 ```bash
 cd src
-python3 app.py
+php -S localhost:8000
 ```
 
-The app starts on `http://localhost:5000` and creates `touro_users.db` (SQLite) in the `src/` directory on first run.
+Open `http://localhost:8000`. On first run the app creates `src/touro_users.db` (SQLite).
 
 ### Default admin
 
 ```
-username: admin
+login:    admin
 password: admin123
 ```
 
-**Change this before deploying anywhere.** The credentials are hardcoded at the top of `src/app.py` and only used to seed the first admin — after login, use the Profile page (or create a fresh admin and remove the default) to rotate them.
+That account is a super admin. Change the password from **Profile** before deploying. The seed values live at the top of `src/lib.php` and are only used to create the first admin if none exists.
 
-Also set a real secret in production:
+For production, set a real session secret:
 
 ```bash
 export SECRET_KEY="something-long-and-random"
@@ -63,24 +67,29 @@ export SECRET_KEY="something-long-and-random"
 ```
 .
 ├── README.md
-├── requirements.txt
 ├── .gitignore
 └── src/
-    ├── app.py                       # Flask app: routes, auth, DB
+    ├── index.php                    # Front controller: routes and app logic
+    ├── lib.php                      # Database, sessions, auth helpers
+    ├── .htaccess                    # Apache: send all requests through index.php
     └── templates/
-        ├── base.html                # Layout, nav, session-timeout dialog
-        ├── login.html               # Login + remember-me + live username check
-        ├── forgot_password.html     # Request a reset
-        ├── profile.html             # Self-service username/password change
-        ├── admin_users.html         # Manage users, inline reset, credentials modal
-        ├── index.html               # Create link + link table with live clicks
-        ├── edit_link.html           # Full link edit
-        ├── expired.html             # Shown when a slug's expiration has passed
-        └── not_found.html           # Shown for unknown slugs
+        ├── base.php                 # Layout, nav, session-timeout dialog
+        ├── login.php                # Login + remember-me + live email check
+        ├── forgot_password.php      # Request a reset
+        ├── profile.php              # Change name, email, password
+        ├── admin_users.php          # Create users, roles, remove with link transfer
+        ├── admin_groups.php         # Super-admin group management
+        ├── admin_expired.php        # Expired links (admins only)
+        ├── index.php                # Create short link + link table
+        ├── edit_link.php            # Full link edit
+        ├── expired.php              # Shown when a short URL has expired
+        └── not_found.php            # Shown for unknown short URLs
 ```
 
 ## Notes
 
-- Passwords are hashed with `werkzeug.security.generate_password_hash` (pbkdf2:sha256).
-- Database schema migrates itself on startup — new columns are added idempotently, so upgrading an existing DB just works.
-- No email provider is wired up. The "forgot password" flow relies on the admin resetting the password and copying the email template to send manually.
+- Passwords are hashed with PHP `password_hash` (and still verify older Flask `pbkdf2` hashes if you upgraded an existing database).
+- The schema migrates itself on startup: columns are renamed or added idempotently, so an older SQLite file keeps working.
+- Logins are stored in `users.username_email`. A separate `users.users_name` holds the person’s display name.
+- No email provider is wired up. After creating a user or resetting a password, copy the template from the modal and send it yourself.
+- `src/touro_users.db` is gitignored so local accounts are not committed.
