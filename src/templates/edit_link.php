@@ -1,5 +1,5 @@
 <h2>Edit Link</h2>
-<p class="muted">Short link: <strong>tou.ro/<?= e($link['slug']) ?></strong> (custom short URL cannot be changed)</p>
+<p class="muted">Short link: <strong><?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?></strong> (custom short URL cannot be changed)</p>
 
 <form method="POST">
     <div class="form-group">

@@ -230,12 +230,48 @@ if (preg_match('#^/admin/users/(\d+)/delete$#', $path, $m) && $method === 'POST'
         redirect(url_for('admin_users'));
     }
 
-    $conn->prepare('DELETE FROM links WHERE user_id = ?')->execute([$user_id]);
+    $link_action = $_POST['link_action'] ?? '';
+
+    if ($link_action === 'delete') {
+        $conn->prepare('DELETE FROM links WHERE user_id = ?')->execute([$user_id]);
+        $conn->prepare('UPDATE links SET updated_by = NULL WHERE updated_by = ?')->execute([$user_id]);
+        $conn->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
+        flash("{$target['display_name']} removed. Their links were deleted.");
+        redirect(url_for('admin_users'));
+    }
+
+    if ($link_action !== 'transfer') {
+        flash('Choose whether to transfer or delete their links.');
+        redirect(url_for('admin_users'));
+    }
+
+    $transfer_to = (int) ($_POST['transfer_to'] ?? 0);
+    $recipient = load_user_row($conn, $transfer_to);
+    if (!$recipient || $transfer_to === $user_id) {
+        flash('Pick someone to receive their links.');
+        redirect(url_for('admin_users'));
+    }
+    if (!can_manage_user($current, $recipient) && (int) $recipient['id'] !== (int) $current['id']) {
+        flash('You can only transfer links to someone you can manage, or to yourself.');
+        redirect(url_for('admin_users'));
+    }
+
+    if ($recipient['group_id'] !== null) {
+        $conn->prepare('UPDATE links SET user_id = ?, group_id = ? WHERE user_id = ?')
+            ->execute([$recipient['id'], $recipient['group_id'], $user_id]);
+    } else {
+        // Super admins have no group; leave each link in the group it already belongs to.
+        $conn->prepare('UPDATE links SET user_id = ? WHERE user_id = ?')
+            ->execute([$recipient['id'], $user_id]);
+    }
+    $conn->prepare('UPDATE links SET updated_by = ? WHERE updated_by = ?')
+        ->execute([$recipient['id'], $user_id]);
     $conn->prepare('DELETE FROM users WHERE id = ?')->execute([$user_id]);
-    flash("{$target['display_name']} removed.");
+    flash("{$target['display_name']} removed. Their links now belong to {$recipient['display_name']}.");
     redirect(url_for('admin_users'));
 }
 
+//you can change a user's role but not you own role
 if (preg_match('#^/admin/users/(\d+)/role$#', $path, $m) && $method === 'POST') {
     $current = require_group_admin();
     $user_id = (int) $m[1];
@@ -283,6 +319,7 @@ if (preg_match('#^/admin/users/(\d+)/role$#', $path, $m) && $method === 'POST') 
         }
     } else {
         // Group admins can change roles inside their group but never move people out of it.
+        // Only super admins can move people between groups.
         $new_group_id = $target['group_id'];
     }
 
