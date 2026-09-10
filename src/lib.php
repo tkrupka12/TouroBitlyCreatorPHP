@@ -1,31 +1,110 @@
 <?php
 
-const DB_PATH = __DIR__ . '/touro_users.db';
+function load_dotenv(?string $path = null): void
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    $loaded = true;
+
+    $candidates = array_filter([
+        $path,
+        __DIR__ . DIRECTORY_SEPARATOR . '.env',
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env',
+    ]);
+
+    $file = null;
+    foreach ($candidates as $candidate) {
+        if (is_readable($candidate)) {
+            $file = $candidate;
+            break;
+        }
+    }
+    if ($file === null) {
+        return;
+    }
+
+    $lines = file($file, FILE_IGNORE_NEW_LINES);
+    if ($lines === false) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+        if (!str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        if ($key === '') {
+            continue;
+        }
+        if (
+            (str_starts_with($value, '"') && str_ends_with($value, '"'))
+            || (str_starts_with($value, "'") && str_ends_with($value, "'"))
+        ) {
+            $value = substr($value, 1, -1);
+        }
+        if (getenv($key) === false) {
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+function env(string $key, string $default = ''): string
+{
+    $value = getenv($key);
+    if ($value === false) {
+        $value = $_ENV[$key] ?? false;
+    }
+    if ($value === false || $value === '') {
+        return $default;
+    }
+    return (string) $value;
+}
+
+function env_int(string $key, int $default): int
+{
+    $value = env($key);
+    if ($value === '') {
+        return $default;
+    }
+    return (int) $value;
+}
+
+load_dotenv();
+
+$db_path = env('DB_PATH');
+define('DB_PATH', $db_path !== '' ? $db_path : (__DIR__ . '/touro_users.db'));
+define('SHORT_LINK_DOMAIN', env('SHORT_LINK_DOMAIN', 'tou.ro'));
+define('ADMIN_USERNAME', env('ADMIN_USERNAME', 'admin'));
+define('ADMIN_PASSWORD', env('ADMIN_PASSWORD', 'admin123'));
+define('DEFAULT_GROUP_NAME', env('DEFAULT_GROUP_NAME', 'Touro'));
+define('SECRET_KEY', env('SECRET_KEY', 'dev-secret-change-me'));
+define('SESSION_COOKIE_NAME', env('SESSION_COOKIE_NAME', 'touro_session'));
+define('SESSION_LIFETIME_MINUTES', env_int('SESSION_LIFETIME_MINUTES', 30));
+define('REMEMBER_DURATION_DAYS', env_int('REMEMBER_DURATION_DAYS', 30));
+
 const SHORT_URL_PATTERN = '/^[a-z0-9_-]{1,64}$/';
 const RESERVED_SHORT_URLS = ['login', 'logout', 'register', 'shorten', 'static', 'admin', 'links'];
 
 const RANDOM_SHORT_URL_LENGTH = 6;
 const RANDOM_SHORT_URL_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-// Display-only branding for short links. Actual routing uses the request host.
-const SHORT_LINK_DOMAIN = 'tou.ro';
-
-const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'admin123';
-
 const ROLE_SUPER_ADMIN = 'super_admin';
 const ROLE_GROUP_ADMIN = 'group_admin';
 const ROLE_USER = 'user';
 const ASSIGNABLE_ROLES = [ROLE_SUPER_ADMIN, ROLE_GROUP_ADMIN, ROLE_USER];
 
-// Existing installs are folded into this group when roles are first introduced.
-const DEFAULT_GROUP_NAME = 'Touro';
 const GROUP_NAME_MAX_LENGTH = 64;
 
 const TIMESTAMP_FMT = 'Y-m-d H:i:s';
-
-const SESSION_LIFETIME_MINUTES = 30;
-const REMEMBER_DURATION_DAYS = 30;
 
 function e($value): string
 {
@@ -587,8 +666,7 @@ function request_path(): string
 
 function start_app_session(): void
 {
-    $secret = getenv('SECRET_KEY') ?: 'dev-secret-change-me';
-    session_name('touro_session');
+    session_name(SESSION_COOKIE_NAME);
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
@@ -598,7 +676,11 @@ function start_app_session(): void
     session_start();
 
     if (empty($_SESSION['_secret_ok'])) {
-        $_SESSION['_secret_ok'] = $secret;
+        $_SESSION['_secret_ok'] = SECRET_KEY;
+    } elseif (!hash_equals((string) $_SESSION['_secret_ok'], SECRET_KEY)) {
+        logout_user();
+        session_regenerate_id(true);
+        $_SESSION['_secret_ok'] = SECRET_KEY;
     }
 
     // Sessions opened before roles or the email rename carry stale keys. Refresh from the

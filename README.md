@@ -42,10 +42,33 @@ A PHP + SQLite URL shortener for creating and managing Touro short links. Super 
 
 ```bash
 cd src
-php -S localhost:8000
+php -S localhost:8000 router.php
 ```
 
-Open `http://localhost:8000`. On first run the app creates `src/touro_users.db` (SQLite).
+The router keeps `.env` from being served as a static file. Open `http://localhost:8000`. On first run the app creates `src/touro_users.db` (SQLite).
+
+### Configuration (`.env`)
+
+Copy `src/.env.example` to `src/.env` and edit the values. The app loads that file on startup. Real environment variables still take precedence if they are already set.
+
+```bash
+cp src/.env.example src/.env
+```
+
+Keep secrets in `.env`, not in PHP source:
+
+| Variable | Purpose |
+| --- | --- |
+| `SECRET_KEY` | Session secret. Generate with `openssl rand -hex 32` |
+| `SESSION_COOKIE_NAME` | PHP session cookie name |
+| `SESSION_LIFETIME_MINUTES` | Idle timeout when “Keep me logged in” is off |
+| `REMEMBER_DURATION_DAYS` | Cookie lifetime when “Keep me logged in” is on |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | First admin account, used only if the database has no users |
+| `SHORT_LINK_DOMAIN` | Display branding for short links |
+| `DEFAULT_GROUP_NAME` | Group created on first run |
+| `DB_PATH` | Optional absolute path to the SQLite file |
+
+`.env` is gitignored. Do not commit it.
 
 ### Default admin
 
@@ -54,13 +77,7 @@ login:    admin
 password: admin123
 ```
 
-That account is a super admin. Change the password from **Profile** before deploying. The seed values live at the top of `src/lib.php` and are only used to create the first admin if none exists.
-
-For production, set a real session secret:
-
-```bash
-export SECRET_KEY="something-long-and-random"
-```
+That account is a super admin. Change the password from **Profile** before deploying. The seed username and password come from `.env` and are only used to create the first admin if none exists.
 
 ## Project layout
 
@@ -69,8 +86,11 @@ export SECRET_KEY="something-long-and-random"
 ├── README.md
 ├── .gitignore
 └── src/
+    ├── .env.example                 # Template for secrets and session settings
+    ├── .env                         # Local secrets (gitignored; copy from .env.example)
     ├── index.php                    # Front controller: routes and app logic
     ├── lib.php                      # Database, sessions, auth helpers
+    ├── router.php                   # PHP built-in server: block .env, then route
     ├── .htaccess                    # Apache: send all requests through index.php
     └── templates/
         ├── base.php                 # Layout, nav, session-timeout dialog
@@ -92,4 +112,4 @@ export SECRET_KEY="something-long-and-random"
 - The schema migrates itself on startup: columns are renamed or added idempotently, so an older SQLite file keeps working.
 - Logins are stored in `users.username_email`. A separate `users.users_name` holds the person’s display name.
 - No email provider is wired up. After creating a user or resetting a password, copy the template from the modal and send it yourself.
-- `src/touro_users.db` is gitignored so local accounts are not committed.
+- `src/touro_users.db` and `src/.env` are gitignored so local accounts and secrets are not committed.
