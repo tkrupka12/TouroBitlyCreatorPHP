@@ -225,13 +225,13 @@
 
     stayBtn.addEventListener('click', async () => {
         try {
-            const resp = await fetch('/session/ping', { credentials: 'same-origin' });
+            const resp = await fetch('/admin/session.php', { credentials: 'same-origin' });
             if (!resp.ok || resp.redirected) {
-                window.location.href = '/login?reason=timeout';
+                window.location.href = '<?= e(url_for('login', ['reason' => 'timeout'])) ?>';
                 return;
             }
         } catch (err) {
-            window.location.href = '/login?reason=timeout';
+            window.location.href = '<?= e(url_for('login', ['reason' => 'timeout'])) ?>';
             return;
         }
         dialog.close();
@@ -248,7 +248,7 @@
     setInterval(() => {
         const now = Date.now();
         if (now >= expiryTime) {
-            window.location.href = '/login?reason=timeout';
+            window.location.href = '<?= e(url_for('login', ['reason' => 'timeout'])) ?>';
             return;
         }
         if (now >= expiryTime - WARNING_MS) {
