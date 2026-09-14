@@ -7,7 +7,7 @@ venv/
 env/
 
 # Local database (created on first run)
-src/touro_users.db
+src/db/
 
 # Environment / secrets
 .env

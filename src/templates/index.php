@@ -169,18 +169,18 @@
                 <?php endif; ?>
             </td>
             <td>
+                <?php if (!empty($link['can_delete'])): ?>
                 <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
                     <a href="<?= e(url_for('edit_link', ['link_id' => $link['id']])) ?>">
                         <button type="button" class="btn-small">Update</button>
                     </a>
-                    <?php if (!empty($link['can_delete'])): ?>
                     <form method="POST" action="<?= e(url_for('delete_link', ['link_id' => $link['id']])) ?>"
                           onsubmit="return confirm('Delete <?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?>? This cannot be undone.');"
                           style="margin: 0;">
                         <button type="submit" class="btn-small btn-danger">Delete</button>
                     </form>
-                    <?php endif; ?>
                 </div>
+                <?php endif; ?>
             </td>
         </tr>
     <?php endforeach; ?>
@@ -280,7 +280,7 @@
         const group_id = groupSelect ? groupSelect.value : null;
         const resultDiv = document.getElementById('result');
 
-        const response = await fetch('/shorten', {
+        const response = await fetch('/admin/shorten.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, short_url, mode, expires_at, notes, group_id })
@@ -377,7 +377,7 @@
         const newNote = noteEditor.value;
         noteSaveBtn.disabled = true;
         try {
-            const resp = await fetch(`/links/${linkId}/notes`, {
+            const resp = await fetch(`/admin/notes.php?id=${encodeURIComponent(linkId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ notes: newNote }),
@@ -448,7 +448,7 @@
 
     async function syncClicks() {
         try {
-            const resp = await fetch('/links/clicks', { credentials: 'same-origin' });
+            const resp = await fetch('/admin/clicks.php', { credentials: 'same-origin' });
             if (!resp.ok) return;
             const data = await resp.json();
             Object.entries(data).forEach(([id, count]) => updateClickCell(id, count));

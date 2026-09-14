@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * Shared helpers: load .env, database, sessions, auth, URLs, and HTML rendering.
+ */
+
 function load_dotenv(?string $path = null): void
 {
     static $loaded = false;
@@ -81,7 +85,7 @@ function env_int(string $key, int $default): int
 load_dotenv();
 
 $db_path = env('DB_PATH');
-define('DB_PATH', $db_path !== '' ? $db_path : (__DIR__ . '/touro_users.db'));
+define('DB_PATH', $db_path !== '' ? $db_path : (__DIR__ . '/db/touro_users.db'));
 define('SHORT_LINK_DOMAIN', env('SHORT_LINK_DOMAIN', 'tou.ro'));
 define('ADMIN_USERNAME', env('ADMIN_USERNAME', 'admin'));
 define('ADMIN_PASSWORD', env('ADMIN_PASSWORD', 'admin123'));
@@ -555,64 +559,64 @@ function url_for(string $name, array $params = [], bool $external = false): stri
 {
     switch ($name) {
         case 'index':
-            $path = '/';
+            $path = '/admin/';
             break;
         case 'login':
-            $path = '/login';
+            $path = '/admin/login/';
             if (!empty($params['reason'])) {
                 $path .= '?reason=' . rawurlencode($params['reason']);
             }
             break;
         case 'logout':
-            $path = '/logout';
+            $path = '/admin/logout/';
             break;
         case 'admin_users':
-            $path = '/admin/users';
+            $path = '/admin/users/';
             break;
         case 'admin_expired':
-            $path = '/admin/expired';
+            $path = '/admin/expired-links/';
             break;
         case 'admin_groups':
-            $path = '/admin/groups';
+            $path = '/admin/groups/';
             break;
         case 'admin_rename_group':
-            $path = '/admin/groups/' . (int) ($params['group_id'] ?? 0) . '/rename';
+            $path = '/admin/groups/?action=rename&group_id=' . (int) ($params['group_id'] ?? 0);
             break;
         case 'admin_delete_group':
-            $path = '/admin/groups/' . (int) ($params['group_id'] ?? 0) . '/delete';
+            $path = '/admin/groups/?action=delete&group_id=' . (int) ($params['group_id'] ?? 0);
             break;
         case 'profile':
-            $path = '/profile';
+            $path = '/admin/profile/';
             break;
         case 'forgot_password':
-            $path = '/forgot-password';
+            $path = '/admin/forgot-password/';
             break;
         case 'profile_change_email':
-            $path = '/profile/email';
+            $path = '/admin/profile/';
             break;
         case 'profile_change_name':
-            $path = '/profile/name';
+            $path = '/admin/profile/';
             break;
         case 'profile_change_password':
-            $path = '/profile/password';
+            $path = '/admin/profile/';
             break;
         case 'redirect_to_url':
             $path = '/' . rawurlencode($params['short_url'] ?? '');
             break;
         case 'edit_link':
-            $path = '/links/' . (int) ($params['link_id'] ?? 0) . '/edit';
+            $path = '/admin/edit-links/?id=' . (int) ($params['link_id'] ?? 0);
             break;
         case 'delete_link':
-            $path = '/links/' . (int) ($params['link_id'] ?? 0) . '/delete';
+            $path = '/admin/delete-link.php?id=' . (int) ($params['link_id'] ?? 0);
             break;
         case 'admin_reset_password':
-            $path = '/admin/users/' . (int) ($params['user_id'] ?? 0) . '/reset-password';
+            $path = '/admin/users/?action=reset-password&user_id=' . (int) ($params['user_id'] ?? 0);
             break;
         case 'admin_set_role':
-            $path = '/admin/users/' . (int) ($params['user_id'] ?? 0) . '/role';
+            $path = '/admin/users/?action=set-role&user_id=' . (int) ($params['user_id'] ?? 0);
             break;
         case 'admin_delete_user':
-            $path = '/admin/users/' . (int) ($params['user_id'] ?? 0) . '/delete';
+            $path = '/admin/users/?action=delete&user_id=' . (int) ($params['user_id'] ?? 0);
             break;
         default:
             $path = '/';
@@ -705,8 +709,8 @@ function start_app_session(): void
         if (time() - $last > SESSION_LIFETIME_MINUTES * 60) {
             logout_user();
             $path = request_path();
-            if ($path !== '/login') {
-                redirect(url_for('login') . '?reason=timeout');
+            if ($path !== '/admin/login') {
+                redirect(url_for('login', ['reason' => 'timeout']));
             }
         } else {
             $_SESSION['last_activity'] = time();
