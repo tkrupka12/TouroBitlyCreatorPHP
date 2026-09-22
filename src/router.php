@@ -9,6 +9,7 @@ $uri = urldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/')
 if (
     preg_match('~(?:^|/)\.env(?:\.|/|$)~', $uri)
     || $uri === '/lib.php'
+    || $uri === '/router.php'
     || str_starts_with($uri, '/db/')
     || str_starts_with($uri, '/templates/')
 ) {
@@ -18,17 +19,18 @@ if (
     exit;
 }
 
+if ($uri === '/admin' || $uri === '/admin/') {
+    header('Location: /', true, 302);
+    exit;
+}
+
 if ($uri === '/') {
-    header('Location: /admin/', true, 302);
+    require __DIR__ . '/index.php';
     exit;
 }
 
-if ($uri === '/admin') {
-    header('Location: /admin/', true, 301);
-    exit;
-}
-
-if (str_starts_with($uri, '/admin/')) {
+// Serve real app files (login, profile, admin/users, etc.). Unknown paths are short links.
+if (!str_starts_with($uri, '/redirects')) {
     $file = __DIR__ . $uri;
     if (is_dir($file) && is_file($file . '/index.php')) {
         require $file . '/index.php';
@@ -41,10 +43,6 @@ if (str_starts_with($uri, '/admin/')) {
         }
         return false;
     }
-
-    http_response_code(404);
-    echo 'Not Found';
-    exit;
 }
 
 require __DIR__ . '/redirects/index.php';

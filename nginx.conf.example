@@ -7,7 +7,18 @@ server {
     index index.php;
 
     location = / {
-        return 302 /admin/;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location = /admin {
+        return 302 /;
+    }
+
+    location = /admin/ {
+        return 302 /;
     }
 
     # Never serve application secrets, data, or shared PHP/template source.
@@ -27,12 +38,16 @@ server {
         deny all;
     }
 
-    # Admin pages and handlers are addressed by their real file/folder paths.
+    location = /router.php {
+        deny all;
+    }
+
+    # Signed-in app pages and admin tools are real files under src/.
     location /admin/ {
         try_files $uri $uri/ =404;
     }
 
-    location ~ ^/admin/.+\.php$ {
+    location ~ \.php$ {
         try_files $uri =404;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -50,9 +65,5 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root/redirects/index.php;
         fastcgi_param SCRIPT_NAME /redirects/index.php;
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-    }
-
-    location ~ \.php$ {
-        return 404;
     }
 }

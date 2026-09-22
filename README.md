@@ -46,7 +46,7 @@ cd src
 php -S localhost:8000 router.php
 ```
 
-The router keeps private application files from being served. Open `http://localhost:8000/admin/`. On first run the app creates `src/db/touro_users.db` (SQLite).
+The router keeps private application files from being served. Open `http://localhost:8000/`. On first run the app creates `src/db/touro_users.db` (SQLite).
 
 ### Configuration (`.env`)
 
@@ -88,7 +88,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-The configuration serves admin pages from their real paths under `/admin/`, sends unknown root paths such as `/admissions` to `redirects/index.php`, and blocks web access to `.env`, `db/`, `templates/`, and `lib.php`.
+The configuration serves the signed-in app from `/` (login, profile, create links) and admin tools from `/admin/`. Unknown root paths such as `/admissions` go to `redirects/index.php`. Web access to `.env`, `db/`, `templates/`, and `lib.php` is blocked.
 
 ### Default admin
 
@@ -109,20 +109,19 @@ That account is a super admin. Change the password from **Profile** before deplo
 └── src/
     ├── .env.example                 # Template for secrets and session settings
     ├── .env                         # Local secrets (gitignored; copy from .env.example)
+    ├── index.php                    # Create short link + active-link table
     ├── lib.php                      # Database, sessions, auth helpers
-    ├── router.php                   # Local server: direct admin files + redirects
+    ├── router.php                   # Local server: app files + redirects
     ├── .htaccess                    # Equivalent Apache rules (optional)
+    ├── login/                       # Login page and account lookup
+    ├── logout/                      # Logout endpoint
+    ├── forgot-password/             # Password-reset request page
+    ├── profile/                     # Account profile page
+    ├── edit-links/                  # Link editor
     ├── admin/
-    │   ├── index.php                # Create short link + active-link table
-    │   ├── login/                   # Login page and account lookup endpoint
-    │   ├── logout/                  # Logout endpoint
-    │   ├── forgot-password/         # Password-reset request page
-    │   ├── profile/                 # Account profile page
     │   ├── users/                   # User administration
     │   ├── groups/                  # Group administration
-    │   ├── expired-links/           # Expired-link list
-    │   ├── edit-links/              # Link editor
-    │   └── *.php                    # Direct JSON/form handlers
+    │   └── expired-links/           # Expired-link list
     ├── redirects/
     │   └── index.php                # Resolves root short-link slugs
     ├── db/

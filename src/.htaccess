@@ -13,7 +13,8 @@ RewriteRule (?:^|/)\.env - [F,L]
 RewriteRule ^(?:db|templates)(?:/|$) - [F,L]
 RewriteRule ^lib\.php$ - [F,L]
 
-RewriteRule ^$ admin/ [R=302,L]
+RewriteRule ^admin/?$ / [R=302,L]
+RewriteRule ^$ index.php [L]
 
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

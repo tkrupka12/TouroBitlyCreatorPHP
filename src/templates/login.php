@@ -33,7 +33,7 @@
 
     async function check(value) {
         try {
-            const resp = await fetch('/admin/login/check.php?u=' + encodeURIComponent(value));
+            const resp = await fetch('/check-username/?u=' + encodeURIComponent(value));
             if (!resp.ok) return;
             const data = await resp.json();
             if (input.value.trim() !== value) return;

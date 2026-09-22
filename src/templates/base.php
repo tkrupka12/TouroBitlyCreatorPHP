@@ -225,7 +225,7 @@
 
     stayBtn.addEventListener('click', async () => {
         try {
-            const resp = await fetch('/admin/session.php', { credentials: 'same-origin' });
+            const resp = await fetch('/session/', { credentials: 'same-origin' });
             if (!resp.ok || resp.redirected) {
                 window.location.href = '<?= e(url_for('login', ['reason' => 'timeout'])) ?>';
                 return;

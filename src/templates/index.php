@@ -280,7 +280,7 @@
         const group_id = groupSelect ? groupSelect.value : null;
         const resultDiv = document.getElementById('result');
 
-        const response = await fetch('/admin/shorten.php', {
+        const response = await fetch('/shorten/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, short_url, mode, expires_at, notes, group_id })
@@ -377,10 +377,10 @@
         const newNote = noteEditor.value;
         noteSaveBtn.disabled = true;
         try {
-            const resp = await fetch(`/admin/notes.php?id=${encodeURIComponent(linkId)}`, {
+            const resp = await fetch(`/notes/?id=${encodeURIComponent(linkId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notes: newNote }),
+                body: JSON.stringify({ id: Number(linkId), notes: newNote }),
             });
             const data = await resp.json();
             if (!resp.ok) {
@@ -448,7 +448,7 @@
 
     async function syncClicks() {
         try {
-            const resp = await fetch('/admin/clicks.php', { credentials: 'same-origin' });
+            const resp = await fetch('/clicks/', { credentials: 'same-origin' });
             if (!resp.ok) return;
             const data = await resp.json();
             Object.entries(data).forEach(([id, count]) => updateClickCell(id, count));

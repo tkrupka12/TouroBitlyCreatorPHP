@@ -96,7 +96,24 @@ define('SESSION_LIFETIME_MINUTES', env_int('SESSION_LIFETIME_MINUTES', 30));
 define('REMEMBER_DURATION_DAYS', env_int('REMEMBER_DURATION_DAYS', 30));
 
 const SHORT_URL_PATTERN = '/^[a-z0-9_-]{1,64}$/';
-const RESERVED_SHORT_URLS = ['login', 'logout', 'register', 'shorten', 'static', 'admin', 'links'];
+const RESERVED_SHORT_URLS = [
+    'login',
+    'logout',
+    'register',
+    'shorten',
+    'static',
+    'admin',
+    'links',
+    'profile',
+    'forgot-password',
+    'edit-links',
+    'delete-link',
+    'notes',
+    'clicks',
+    'check-username',
+    'session',
+    'redirects',
+];
 
 const RANDOM_SHORT_URL_LENGTH = 6;
 const RANDOM_SHORT_URL_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -559,16 +576,16 @@ function url_for(string $name, array $params = [], bool $external = false): stri
 {
     switch ($name) {
         case 'index':
-            $path = '/admin/';
+            $path = '/';
             break;
         case 'login':
-            $path = '/admin/login/';
+            $path = '/login/';
             if (!empty($params['reason'])) {
                 $path .= '?reason=' . rawurlencode($params['reason']);
             }
             break;
         case 'logout':
-            $path = '/admin/logout/';
+            $path = '/logout/';
             break;
         case 'admin_users':
             $path = '/admin/users/';
@@ -586,28 +603,22 @@ function url_for(string $name, array $params = [], bool $external = false): stri
             $path = '/admin/groups/?action=delete&group_id=' . (int) ($params['group_id'] ?? 0);
             break;
         case 'profile':
-            $path = '/admin/profile/';
+        case 'profile_change_email':
+        case 'profile_change_name':
+        case 'profile_change_password':
+            $path = '/profile/';
             break;
         case 'forgot_password':
-            $path = '/admin/forgot-password/';
-            break;
-        case 'profile_change_email':
-            $path = '/admin/profile/';
-            break;
-        case 'profile_change_name':
-            $path = '/admin/profile/';
-            break;
-        case 'profile_change_password':
-            $path = '/admin/profile/';
+            $path = '/forgot-password/';
             break;
         case 'redirect_to_url':
             $path = '/' . rawurlencode($params['short_url'] ?? '');
             break;
         case 'edit_link':
-            $path = '/admin/edit-links/?id=' . (int) ($params['link_id'] ?? 0);
+            $path = '/edit-links/?id=' . (int) ($params['link_id'] ?? 0);
             break;
         case 'delete_link':
-            $path = '/admin/delete-link.php?id=' . (int) ($params['link_id'] ?? 0);
+            $path = '/delete-link/?id=' . (int) ($params['link_id'] ?? 0);
             break;
         case 'admin_reset_password':
             $path = '/admin/users/?action=reset-password&user_id=' . (int) ($params['user_id'] ?? 0);
@@ -709,7 +720,7 @@ function start_app_session(): void
         if (time() - $last > SESSION_LIFETIME_MINUTES * 60) {
             logout_user();
             $path = request_path();
-            if ($path !== '/admin/login') {
+            if ($path !== '/login') {
                 redirect(url_for('login', ['reason' => 'timeout']));
             }
         } else {
