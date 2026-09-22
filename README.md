@@ -15,7 +15,8 @@ A PHP + SQLite URL shortener for creating and managing Touro short links. Super 
 - One-click **Copy** next to every short URL
 - Live click counts and a **Last clicked** time (on click, on tab focus, and a 3-second poll)
 - Link creators and group admins can edit or delete links; **Last edited** shows who touched it last
-- `https://tou.ro` and `https://tou.ro/` always go to `https://www.touro.edu`. That row stays in the links table so you can see clicks, but it cannot be updated or deleted in the app. Change `ROOT_LINK_URL` in the software to point it somewhere else. The signed-in app lives at `/links/`.
+- `https://tou.ro` and `https://tou.ro/` always go to `https://www.touro.edu`. That row stays in the links table so you can see clicks, but it cannot be updated or deleted in the app. Change `ROOT_LINK_URL` in the software to point it somewhere else.
+- The signed-in app is on the same host: `https://tou.ro/login/` and `https://tou.ro/links/`.
 - Super admins see a Group column and pick a group when creating a link
 
 ### Accounts, groups, and roles
@@ -47,7 +48,7 @@ cd src
 php -S localhost:8000 router.php
 ```
 
-The router keeps private application files from being served. Open `http://localhost:8000/login/` (or `/links/` after you sign in). Visiting `/` locally follows the same homepage redirect as `tou.ro` (`https://www.touro.edu`). On first run the app creates `src/db/touro_users.db` (SQLite).
+The router keeps private application files from being served. Open `http://localhost:8000/login/` (or `/links/` after you sign in). Visiting `/` goes to `https://www.touro.edu`, same as production. On first run the app creates `src/db/touro_users.db` (SQLite).
 
 ### Configuration (`.env`)
 
@@ -90,7 +91,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-The configuration sends `/` to `https://www.touro.edu`, serves the signed-in app from `/links/` (login, profile, create links), and keeps admin tools under `/admin/`. Unknown root paths such as `/admissions` go to `redirects/index.php`. Web access to `.env`, `db/`, `templates/`, and `lib.php` is blocked.
+The site uses only `tou.ro`. `/` goes to `https://www.touro.edu`. Sign in at `/login/` and manage links at `/links/`. Paths such as `/stories` are short links. Web access to `.env`, `db/`, `templates/`, and `lib.php` is blocked. Do not redirect `/` to `$uri/links/` — that becomes `//links/` and 404s.
 
 ### Default admin
 
@@ -111,7 +112,7 @@ That account is a super admin. Change the password from **Profile** before deplo
 └── src/
     ├── .env.example                 # Template for secrets and session settings
     ├── .env                         # Local secrets (gitignored; copy from .env.example)
-    ├── index.php                    # Public homepage: tou.ro → www.touro.edu
+    ├── index.php                    # tou.ro / → www.touro.edu
     ├── lib.php                      # Database, sessions, auth helpers
     ├── router.php                   # Local server: app files + redirects
     ├── .htaccess                    # Equivalent Apache rules (optional)

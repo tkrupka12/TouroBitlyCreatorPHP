@@ -2,7 +2,6 @@
 
 /**
  * https://tou.ro and https://tou.ro/ always go to the Touro website.
- * Destination is hardcoded. The row in the links table is display-only.
  */
 
 require __DIR__ . '/lib.php';

@@ -648,7 +648,9 @@ function absolute_url(string $path): string
     $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443);
     $scheme = $https ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
+    $host = rtrim((string) $host, '/');
+    $path = '/' . ltrim($path, '/');
     return $scheme . '://' . $host . $path;
 }
 
@@ -717,6 +719,12 @@ function url_for(string $name, array $params = [], bool $external = false): stri
 
 function redirect(string $url, int $code = 302): void
 {
+    if (preg_match('#^(https?://)([^/]+)(/.*)?$#i', $url, $m)) {
+        $path = $m[3] ?? '/';
+        $url = $m[1] . rtrim($m[2], '/') . '/' . ltrim($path, '/');
+    } elseif (str_starts_with($url, '/')) {
+        $url = '/' . ltrim($url, '/');
+    }
     header('Location: ' . $url, true, $code);
     exit;
 }

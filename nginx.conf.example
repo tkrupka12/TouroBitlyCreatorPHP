@@ -1,18 +1,22 @@
-# Copy this server block into your nginx configuration and update server_name,
-# root, and fastcgi_pass for your host.
+# One hostname: tou.ro
+#
+#   /              → https://www.touro.edu  (src/index.php)
+#   /login/        → sign in
+#   /links/        → create and manage short links
+#   /stories       → short-link redirect
 #
 # After copying: sudo nginx -t && sudo systemctl reload nginx
-#
-# /              → Touro website (src/index.php)
-# /links/        → signed-in link manager
-# /login/        → login
-# /admin/users/  → user admin
-# /admissions    → short-link redirect
+# Check the socket with: ls /run/php/
+
 server {
     listen 80;
-    server_name tou.ro;
+    listen 443 ssl;
+    server_name tou.ro www.tou.ro;
     root /var/www/touro/src;
     index index.php;
+
+    # ssl_certificate     /etc/letsencrypt/live/tou.ro/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/tou.ro/privkey.pem;
 
     location = / {
         include fastcgi_params;
@@ -29,28 +33,12 @@ server {
         return 302 /links/;
     }
 
-    # Never serve application secrets, data, or shared PHP/template source.
-    location ~ (?:^|/)\.env(?:\.|/|$) {
-        deny all;
-    }
+    location ~ (?:^|/)\.env(?:\.|/|$) { deny all; }
+    location ^~ /db/ { deny all; }
+    location ^~ /templates/ { deny all; }
+    location = /lib.php { deny all; }
+    location = /router.php { deny all; }
 
-    location ^~ /db/ {
-        deny all;
-    }
-
-    location ^~ /templates/ {
-        deny all;
-    }
-
-    location = /lib.php {
-        deny all;
-    }
-
-    location = /router.php {
-        deny all;
-    }
-
-    # Use index.php inside a folder. "$uri/" is a directory listing and 403s.
     location /admin/ {
         try_files $uri $uri/index.php =404;
     }
@@ -62,7 +50,7 @@ server {
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
     }
 
-    # App folders (/login/, /links/, …) or unknown short-link slugs.
+    # Use $uri/index.php, not $uri/. Never return $uri/links/ (that becomes //links/).
     location / {
         try_files $uri $uri/index.php /redirects/index.php?$query_string;
     }
