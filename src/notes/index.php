@@ -20,11 +20,14 @@ if ($link_id <= 0) {
 }
 
 $conn = get_db();
-$stmt = $conn->prepare('SELECT group_id FROM links WHERE id = ?');
+$stmt = $conn->prepare('SELECT group_id, short_url FROM links WHERE id = ?');
 $stmt->execute([$link_id]);
 $link_row = $stmt->fetch(PDO::FETCH_NUM);
 if (!$link_row) {
     json_response(['error' => 'Link not found.'], 404);
+}
+if (is_root_short_url((string) $link_row[1])) {
+    json_response(['error' => 'The homepage redirect cannot be changed in the app.'], 403);
 }
 if (!link_visible_to($user, $link_row[0] === null ? null : (int) $link_row[0])) {
     json_response(['error' => 'You do not have access to that link.'], 403);

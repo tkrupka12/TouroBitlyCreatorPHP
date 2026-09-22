@@ -20,7 +20,7 @@ if (
 }
 
 if ($uri === '/admin' || $uri === '/admin/') {
-    header('Location: /', true, 302);
+    header('Location: /links/', true, 302);
     exit;
 }
 

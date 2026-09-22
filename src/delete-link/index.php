@@ -12,7 +12,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 $user = require_login();
 $link_id = (int) ($_POST['id'] ?? $_GET['id'] ?? 0);
 $conn = get_db();
-$stmt = $conn->prepare('SELECT user_id, group_id FROM links WHERE id = ?');
+$stmt = $conn->prepare('SELECT user_id, group_id, short_url FROM links WHERE id = ?');
 $stmt->execute([$link_id]);
 $row = $stmt->fetch(PDO::FETCH_NUM);
 
@@ -20,8 +20,12 @@ if (!$row) {
     flash('Link not found.');
     redirect(url_for('index'));
 }
+if (is_root_short_url((string) $row[2])) {
+    flash('The homepage redirect is built into the software and cannot be deleted.');
+    redirect(url_for('index'));
+}
 $link_group_id = $row[1] === null ? null : (int) $row[1];
-if (!can_delete_link($user, $link_group_id, (int) $row[0])) {
+if (!can_delete_link($user, $link_group_id, (int) $row[0], (string) $row[2])) {
     abort(403);
 }
 

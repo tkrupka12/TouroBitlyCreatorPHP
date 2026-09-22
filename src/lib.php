@@ -87,6 +87,7 @@ load_dotenv();
 $db_path = env('DB_PATH');
 define('DB_PATH', $db_path !== '' ? $db_path : (__DIR__ . '/db/touro_users.db'));
 define('SHORT_LINK_DOMAIN', env('SHORT_LINK_DOMAIN', 'tou.ro'));
+define('ROOT_LINK_URL', env('ROOT_LINK_URL', 'https://www.touro.edu'));
 define('ADMIN_USERNAME', env('ADMIN_USERNAME', 'admin'));
 define('ADMIN_PASSWORD', env('ADMIN_PASSWORD', 'admin123'));
 define('DEFAULT_GROUP_NAME', env('DEFAULT_GROUP_NAME', 'Touro'));
@@ -126,6 +127,7 @@ const ASSIGNABLE_ROLES = [ROLE_SUPER_ADMIN, ROLE_GROUP_ADMIN, ROLE_USER];
 const GROUP_NAME_MAX_LENGTH = 64;
 
 const TIMESTAMP_FMT = 'Y-m-d H:i:s';
+const ROOT_LINK_SLUG = '';
 
 function e($value): string
 {
@@ -136,6 +138,10 @@ function get_db(): PDO
 {
     static $pdo = null;
     if ($pdo === null) {
+        $dir = dirname(DB_PATH);
+        if ($dir !== '' && $dir !== '.' && !is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
         $pdo = new PDO('sqlite:' . DB_PATH);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->exec('PRAGMA foreign_keys = ON');
@@ -203,6 +209,7 @@ function init_db(): void
     _ensure_column($conn, 'links', 'notes', 'TEXT');
     _ensure_column($conn, 'links', 'updated_by', 'INTEGER');
     _ensure_column($conn, 'links', 'clicks', 'INTEGER NOT NULL DEFAULT 0');
+    _ensure_column($conn, 'links', 'last_clicked_at', 'TEXT');
     _ensure_column($conn, 'users', 'pending_reset', 'INTEGER NOT NULL DEFAULT 0');
 
     // Logins are email addresses now, so the column says so. Existing rows keep their value.
@@ -231,6 +238,7 @@ function init_db(): void
         // Give a fresh install one group so the first super admin can add users right away.
         ensure_group($conn, DEFAULT_GROUP_NAME);
     }
+    ensure_root_homepage_link($conn);
 }
 
 function _backfill_roles_and_groups(PDO $conn, bool $has_is_admin): void
@@ -249,6 +257,75 @@ function _backfill_roles_and_groups(PDO $conn, bool $has_is_admin): void
     $conn->prepare('UPDATE users SET group_id = ? WHERE role <> ? AND group_id IS NULL')
         ->execute([$group_id, ROLE_SUPER_ADMIN]);
     $conn->prepare('UPDATE links SET group_id = ? WHERE group_id IS NULL')->execute([$group_id]);
+}
+
+function ensure_root_homepage_link(PDO $conn): void
+{
+    $note = 'Hardcoded homepage redirect. Change ROOT_LINK_URL in the software to update it.';
+    $stmt = $conn->prepare('SELECT id FROM links WHERE short_url = ?');
+    $stmt->execute([ROOT_LINK_SLUG]);
+    $existing_id = $stmt->fetchColumn();
+    if ($existing_id !== false) {
+        $conn->prepare('UPDATE links SET url = ?, expires_at = NULL, notes = ? WHERE id = ?')
+            ->execute([ROOT_LINK_URL, $note, (int) $existing_id]);
+        return;
+    }
+
+    $owner = $conn->prepare('SELECT id FROM users WHERE role = ? ORDER BY id ASC LIMIT 1');
+    $owner->execute([ROLE_SUPER_ADMIN]);
+    $owner_id = $owner->fetchColumn();
+    if ($owner_id === false) {
+        $owner_id = $conn->query('SELECT id FROM users ORDER BY id ASC LIMIT 1')->fetchColumn();
+    }
+    if ($owner_id === false) {
+        return;
+    }
+
+    $conn->prepare(
+        'INSERT INTO links (user_id, group_id, short_url, url, created_at, expires_at, notes) VALUES (?, ?, ?, ?, ?, NULL, ?)'
+    )->execute([
+        (int) $owner_id,
+        ensure_group($conn, DEFAULT_GROUP_NAME),
+        ROOT_LINK_SLUG,
+        ROOT_LINK_URL,
+        now_str(),
+        $note,
+    ]);
+}
+
+function is_root_short_url(string $short_url): bool
+{
+    return $short_url === ROOT_LINK_SLUG;
+}
+
+function short_link_label(string $short_url): string
+{
+    return is_root_short_url($short_url) ? SHORT_LINK_DOMAIN : SHORT_LINK_DOMAIN . '/' . $short_url;
+}
+
+function record_link_click(PDO $conn, string $short_url): void
+{
+    $conn->prepare('UPDATE links SET clicks = clicks + 1, last_clicked_at = ? WHERE short_url = ?')
+        ->execute([now_str(), $short_url]);
+}
+
+function follow_short_link(PDO $conn, string $short_url): void
+{
+    $stmt = $conn->prepare('SELECT url, expires_at FROM links WHERE short_url = ?');
+    $stmt->execute([$short_url]);
+    $result = $stmt->fetch(PDO::FETCH_NUM);
+    if (!$result) {
+        render('not_found', ['short_url' => $short_url === '' ? SHORT_LINK_DOMAIN : $short_url], 404);
+    }
+    [$url, $expires_at] = $result;
+    if (is_expired($expires_at)) {
+        render('expired', [
+            'short_url' => $short_url === '' ? SHORT_LINK_DOMAIN : $short_url,
+            'expires_at' => $expires_at,
+        ], 410);
+    }
+    record_link_click($conn, $short_url);
+    redirect($url);
 }
 
 function ensure_group(PDO $conn, string $name): int
@@ -455,8 +532,11 @@ function link_visible_to(array $user, ?int $link_group_id): bool
     return (int) $user['group_id'] === $link_group_id;
 }
 
-function can_delete_link(array $user, ?int $link_group_id, int $creator_id): bool
+function can_delete_link(array $user, ?int $link_group_id, int $creator_id, string $short_url = ''): bool
 {
+    if (is_root_short_url($short_url)) {
+        return false;
+    }
     if (!link_visible_to($user, $link_group_id)) {
         return false;
     }
@@ -473,9 +553,9 @@ function link_scope_clause(array $user): array
         return ['', []];
     }
     if ($user['group_id'] === null) {
-        return ['WHERE 1 = 0', []];
+        return ['WHERE links.short_url = ?', [ROOT_LINK_SLUG]];
     }
-    return ['WHERE links.group_id = ?', [(int) $user['group_id']]];
+    return ['WHERE (links.group_id = ? OR links.short_url = ?)', [(int) $user['group_id'], ROOT_LINK_SLUG]];
 }
 
 function load_user_row(PDO $conn, int $user_id): ?array
@@ -576,7 +656,7 @@ function url_for(string $name, array $params = [], bool $external = false): stri
 {
     switch ($name) {
         case 'index':
-            $path = '/';
+            $path = '/links/';
             break;
         case 'login':
             $path = '/login/';

@@ -20,19 +20,4 @@ if ($short_url === '' || $short_url === 'redirects' || str_starts_with($short_ur
     abort(404);
 }
 
-$conn = get_db();
-$stmt = $conn->prepare('SELECT url, expires_at FROM links WHERE short_url = ?');
-$stmt->execute([$short_url]);
-$result = $stmt->fetch(PDO::FETCH_NUM);
-
-if (!$result) {
-    render('not_found', ['short_url' => $short_url], 404);
-}
-
-[$url, $expires_at] = $result;
-if (is_expired($expires_at)) {
-    render('expired', ['short_url' => $short_url, 'expires_at' => $expires_at], 410);
-}
-
-$conn->prepare('UPDATE links SET clicks = clicks + 1 WHERE short_url = ?')->execute([$short_url]);
-redirect($url);
+follow_short_link(get_db(), $short_url);

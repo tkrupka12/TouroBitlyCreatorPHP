@@ -1,5 +1,13 @@
 # Copy this server block into your nginx configuration and update server_name,
 # root, and fastcgi_pass for your host.
+#
+# After copying: sudo nginx -t && sudo systemctl reload nginx
+#
+# /              → Touro website (src/index.php)
+# /links/        → signed-in link manager
+# /login/        → login
+# /admin/users/  → user admin
+# /admissions    → short-link redirect
 server {
     listen 80;
     server_name tou.ro;
@@ -14,11 +22,11 @@ server {
     }
 
     location = /admin {
-        return 302 /;
+        return 302 /links/;
     }
 
     location = /admin/ {
-        return 302 /;
+        return 302 /links/;
     }
 
     # Never serve application secrets, data, or shared PHP/template source.
@@ -42,9 +50,9 @@ server {
         deny all;
     }
 
-    # Signed-in app pages and admin tools are real files under src/.
+    # Use index.php inside a folder. "$uri/" is a directory listing and 403s.
     location /admin/ {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/index.php =404;
     }
 
     location ~ \.php$ {
@@ -54,9 +62,9 @@ server {
         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
     }
 
-    # Unknown root paths are short-link slugs.
+    # App folders (/login/, /links/, …) or unknown short-link slugs.
     location / {
-        try_files $uri $uri/ /redirects/index.php?$query_string;
+        try_files $uri $uri/index.php /redirects/index.php?$query_string;
     }
 
     location = /redirects/index.php {

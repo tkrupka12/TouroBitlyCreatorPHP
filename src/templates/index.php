@@ -84,22 +84,24 @@
 <h3>All Links</h3>
 <table>
     <colgroup>
-        <col style="width: <?= $actor_is_super ? '14%' : '19%' ?>">
-        <col style="width: 14%">
-        <col style="width: 7%">
-        <col style="width: 8%">
-        <?php if ($actor_is_super): ?><col style="width: 9%"><?php endif; ?>
+        <col style="width: <?= $actor_is_super ? '13%' : '17%' ?>">
+        <col style="width: 13%">
+        <col style="width: 6%">
         <col style="width: 8%">
         <col style="width: 8%">
-        <col style="width: 9%">
-        <col style="width: 9%">
-        <col style="width: <?= $actor_is_super ? '14%' : '18%' ?>">
+        <?php if ($actor_is_super): ?><col style="width: 8%"><?php endif; ?>
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: <?= $actor_is_super ? '12%' : '16%' ?>">
     </colgroup>
     <thead>
         <tr>
             <th>Destination</th>
             <th>Short</th>
             <th>Clicks</th>
+            <th>Last clicked</th>
             <th>Creator</th>
             <?php if ($actor_is_super): ?><th>Group</th><?php endif; ?>
             <th>Created</th>
@@ -116,6 +118,8 @@
             [$created_date, $created_time] = stacked_date_parts($link['created_at'] ?? null);
             [$expires_date, $expires_time] = stacked_date_parts($link['expires_at'] ?? null);
             [$updated_date, $updated_time] = stacked_date_parts($link['updated_at'] ?? null);
+            [$clicked_date, $clicked_time] = stacked_date_parts($link['last_clicked_at'] ?? null);
+            $label = short_link_label((string) $link['short_url']);
         ?>
         <tr data-link-id="<?= e($link['id']) ?>">
             <td class="<?= !empty($link['expired']) ? 'expired' : '' ?>">
@@ -124,8 +128,8 @@
                 </div>
             </td>
             <td>
-                <div class="tt" data-tooltip="<?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?>">
-                    <a class="truncate short-link" data-link-id="<?= e($link['id']) ?>" href="<?= e(url_for('redirect_to_url', ['short_url' => $link['short_url']])) ?>" target="_blank"><strong><?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?></strong></a>
+                <div class="tt" data-tooltip="<?= e($label) ?>">
+                    <a class="truncate short-link" data-link-id="<?= e($link['id']) ?>" href="<?= e(url_for('redirect_to_url', ['short_url' => $link['short_url']])) ?>" target="_blank"><strong><?= e($label) ?></strong></a>
                 </div>
                 <button type="button" class="copy-btn"
                         data-copy="<?= e(url_for('redirect_to_url', ['short_url' => $link['short_url']], true)) ?>">
@@ -134,6 +138,12 @@
                 <?php if (!empty($link['expired'])): ?><span class="expired-badge">expired</span><?php endif; ?>
             </td>
             <td class="click-cell" data-link-id="<?= e($link['id']) ?>"><strong><?= e($link['clicks']) ?></strong></td>
+            <td class="muted stacked-date clicked-cell" data-link-id="<?= e($link['id']) ?>">
+                <?php if (!empty($link['last_clicked_at'])): ?>
+                    <?= e($clicked_date) ?><br>
+                    <span class="time"><?= e($clicked_time) ?></span>
+                <?php else: ?>—<?php endif; ?>
+            </td>
             <td title="<?= e($link['creator']) ?>"><span class="truncate"><?= e($link['creator']) ?></span></td>
             <?php if ($actor_is_super): ?>
             <td title="<?= e($link['group_name'] ?? '') ?>">
@@ -160,7 +170,15 @@
                 <?php else: ?>—<?php endif; ?>
             </td>
             <td class="note-cell" data-link-id="<?= e($link['id']) ?>" data-short-url="<?= e($link['short_url']) ?>" data-note="<?= e($link['notes']) ?>">
-                <?php if ($link['notes']): ?>
+                <?php if (!empty($link['is_root'])): ?>
+                    <?php if ($link['notes']): ?>
+                    <div class="tt" data-tooltip="<?= e($link['notes']) ?>">
+                        <span class="truncate muted"><?= e($link['notes']) ?></span>
+                    </div>
+                    <?php else: ?>
+                    <span class="muted">—</span>
+                    <?php endif; ?>
+                <?php elseif ($link['notes']): ?>
                 <div class="tt" data-tooltip="<?= e($link['notes']) ?>" style="display: inline-block;">
                     <button type="button" class="note-btn note-open">&#128221; Note</button>
                 </div>
@@ -169,23 +187,27 @@
                 <?php endif; ?>
             </td>
             <td>
-                <?php if (!empty($link['can_delete'])): ?>
+                <?php if (!empty($link['can_edit']) || !empty($link['can_delete'])): ?>
                 <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                    <?php if (!empty($link['can_edit'])): ?>
                     <a href="<?= e(url_for('edit_link', ['link_id' => $link['id']])) ?>">
                         <button type="button" class="btn-small">Update</button>
                     </a>
+                    <?php endif; ?>
+                    <?php if (!empty($link['can_delete'])): ?>
                     <form method="POST" action="<?= e(url_for('delete_link', ['link_id' => $link['id']])) ?>"
-                          onsubmit="return confirm('Delete <?= e(SHORT_LINK_DOMAIN) ?>/<?= e($link['short_url']) ?>? This cannot be undone.');"
+                          onsubmit="return confirm('Delete <?= e($label) ?>? This cannot be undone.');"
                           style="margin: 0;">
                         <button type="submit" class="btn-small btn-danger">Delete</button>
                     </form>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </td>
         </tr>
     <?php endforeach; ?>
     <?php else: ?>
-        <tr><td colspan="<?= $actor_is_super ? 10 : 9 ?>" class="muted">No links yet.</td></tr>
+        <tr><td colspan="<?= $actor_is_super ? 11 : 10 ?>" class="muted">No links yet.</td></tr>
     <?php endif; ?>
     </tbody>
 </table>
@@ -421,11 +443,23 @@
         return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    function stackedDateHtml(ts) {
+        if (!ts) return '—';
+        const parts = String(ts).split(' ');
+        const time = parts[1] ? parts[1].slice(0, 5) : '';
+        return parts[0] + (time ? '<br><span class="time">' + time + '</span>' : '');
+    }
+
     function updateClickCell(linkId, value) {
         const cell = document.querySelector('.click-cell[data-link-id="' + linkId + '"]');
         if (!cell) return;
         const strong = cell.querySelector('strong');
         if (strong) strong.textContent = value;
+    }
+
+    function updateLastClickedCell(linkId, ts) {
+        const cell = document.querySelector('.clicked-cell[data-link-id="' + linkId + '"]');
+        if (cell) cell.innerHTML = stackedDateHtml(ts);
     }
 
     function bumpLinkCell(link) {
@@ -435,6 +469,13 @@
             const current = parseInt(cell.textContent, 10) || 0;
             cell.textContent = current + 1;
         }
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        updateLastClickedCell(
+            linkId,
+            now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+            + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds())
+        );
     }
 
     document.addEventListener('click', (e) => {
@@ -451,7 +492,14 @@
             const resp = await fetch('/clicks/', { credentials: 'same-origin' });
             if (!resp.ok) return;
             const data = await resp.json();
-            Object.entries(data).forEach(([id, count]) => updateClickCell(id, count));
+            Object.entries(data).forEach(([id, info]) => {
+                if (info && typeof info === 'object') {
+                    updateClickCell(id, info.clicks);
+                    updateLastClickedCell(id, info.last_clicked_at);
+                } else {
+                    updateClickCell(id, info);
+                }
+            });
         } catch (err) { /* ignore transient errors */ }
     }
     setInterval(syncClicks, 3000);

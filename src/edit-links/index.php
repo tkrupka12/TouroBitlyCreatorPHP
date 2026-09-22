@@ -28,6 +28,10 @@ if (!$row) {
 if (!link_visible_to($user, $row[8] === null ? null : (int) $row[8])) {
     abort(403);
 }
+if (is_root_short_url((string) $row[2])) {
+    flash('The homepage redirect is built into the software and cannot be edited.');
+    redirect(url_for('index'));
+}
 
 $link = [
     'id' => $row[0],
