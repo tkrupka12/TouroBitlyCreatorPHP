@@ -1,0 +1,58 @@
+# Copy this server block into your nginx configuration and update server_name,
+# root, and fastcgi_pass for your host.
+server {
+    listen 80;
+    server_name tou.ro;
+    root /var/www/touro/src;
+    index index.php;
+
+    location = / {
+        rewrite ^ /redirects/index.php last;
+    }
+
+    # Never serve application secrets, data, or shared PHP/template source.
+    location ~ (?:^|/)\.env(?:\.|/|$) {
+        deny all;
+    }
+
+    location ^~ /db/ {
+        deny all;
+    }
+
+    location ^~ /templates/ {
+        deny all;
+    }
+
+    location = /lib.php {
+        deny all;
+    }
+
+    # Admin pages and handlers are addressed by their real file/folder paths.
+    location /admin/ {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ ^/admin/.+\.php$ {
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    # Unknown root paths are short-link slugs.
+    location / {
+        try_files $uri $uri/ /redirects/index.php?$query_string;
+    }
+
+    location = /redirects/index.php {
+        internal;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/redirects/index.php;
+        fastcgi_param SCRIPT_NAME /redirects/index.php;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ \.php$ {
+        return 404;
+    }
+}
